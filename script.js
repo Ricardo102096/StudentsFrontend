@@ -1,50 +1,77 @@
 const apiBase = 'https://localhost:44336/api';
 
+let students = []; // Todos los estudiantes
+let currentPage = 1;
+const pageSize = 5; // ← Puedes ajustar cuántos por página
 // Load allstudent from DB in the table
 async function loadStudents() {
   try {
     const res = await fetch(`${apiBase}/student`);
     if (!res.ok) throw new Error('Error al obtener estudiantes');
-    const students = await res.json();
-    renderStudents(students);
+    const result = await res.json();
+    students = result.data;
+    currentPage = 1;
+    renderStudents(); // ya no le pasas estudiantes
+    renderPagination();
   } catch (err) {
     console.error(err);
   }
 }
 // Render students in the table
-function renderStudents(students) {
+function renderStudents() {
   const tbody = document.getElementById('student-table-body');
   const search = document.getElementById('search-student').value.toLowerCase();
   tbody.innerHTML = '';
 
-  students
-    .filter(s =>
-      (`${s.firstName} ${s.lastName} ${s.middleName}`.toLowerCase().includes(search))
-    )
-    .forEach(student => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${student.firstName} ${student.middleName || ''} ${student.lastName}</td>
-        <td>${getGenderLabel(student.gender)}</td>
-        <td>${student.address?.addressLine || '—'}</td>
-        <td>
-  <button class="btn btn-sm btn-outline-primary btn-phone" data-id="${student.studentId}">📞</button>
-</td>
-<button class="btn btn-sm btn-outline-secondary btn-email" data-id="${student.studentId}">✉️</button>
-   <td>
-  <button class="btn btn-sm btn-warning btn-edit-student" data-id="${student.studentId}">✏️</button>
-  <button class="btn btn-sm btn-danger btn-delete-student" data-id="${student.studentId}">🗑️</button>
-  <button class="btn btn-sm btn-info btn-view-details" data-id="${student.studentId}">👁️</button>
-</td>
-      `;
-      tbody.appendChild(row);
-    });
-    attachEditStudentListeners();
-    attachDeleteStudentListeners();
-    attachPhoneListeners();
-    attachEmailListeners();
-    attachViewDetailsListeners();
+  const filtered = students.filter(s =>
+    (`${s.firstName} ${s.middleName || ''} ${s.lastName}`.toLowerCase().includes(search))
+  );
+
+  const start = (currentPage - 1) * pageSize;
+  const paginated = filtered.slice(start, start + pageSize);
+
+  paginated.forEach(student => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${student.firstName} ${student.middleName || ''} ${student.lastName}</td>
+      <td>${getGenderLabel(student.gender)}</td>
+      <td>${student.address?.addressLine || '—'}</td>
+      <td><button class="btn btn-sm btn-outline-primary btn-phone" data-id="${student.studentId}">📞</button></td>
+      <td><button class="btn btn-sm btn-outline-secondary btn-email" data-id="${student.studentId}">✉️</button></td>
+      <td>
+        <button class="btn btn-sm btn-warning btn-edit-student" data-id="${student.studentId}">✏️</button>
+        <button class="btn btn-sm btn-danger btn-delete-student" data-id="${student.studentId}">🗑️</button>
+        <button class="btn btn-sm btn-info btn-view-details" data-id="${student.studentId}">👁️</button>
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
+
+  attachEditStudentListeners();
+  attachDeleteStudentListeners();
+  attachPhoneListeners();
+  attachEmailListeners();
+  attachViewDetailsListeners();
 }
+function renderPagination() {
+  const container = document.getElementById('pagination');
+  container.innerHTML = '';
+
+  const totalPages = Math.ceil(students.length / pageSize);
+
+  for (let i = 1; i <= totalPages; i++) {
+    const btn = document.createElement('button');
+    btn.textContent = i;
+    btn.className = `btn btn-sm ${i === currentPage ? 'btn-primary' : 'btn-outline-primary'} mx-1`;
+    btn.addEventListener('click', () => {
+      currentPage = i;
+      renderStudents();
+      renderPagination();
+    });
+    container.appendChild(btn);
+  }
+}
+
 //Listeners for the edit button
 // When the edit button is clicked, show the edit modal
 function attachEditStudentListeners() {
@@ -303,7 +330,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const modal = new bootstrap.Modal(document.getElementById('addressModal'));
     modal.show();
   });
-  document.getElementById('search-student').addEventListener('input', debounce(loadStudents,400));
+  document.getElementById('search-student').addEventListener('input', debounce(() => {
+    currentPage = 1;
+    renderStudents();
+    renderPagination();
+  }, 400));
   document.getElementById('search-address').addEventListener('input', debounce(loadAddresses),400);
 
 //LoadStudent when the tab is clicked
